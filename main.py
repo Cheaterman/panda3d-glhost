@@ -15,12 +15,12 @@ class Test(App):
     def build(self):
         self.root = root = Builder.load_string('''
 PandaView:
-    id: view
-    cam_pos: 0, -12, 1
-    cam_lookat: 0, 0, .5
+    cam_pos: 0, -8, .5
         ''')
 
         self.model = root.load_model('Kivy.egg')
+
+        root.msb.setBackgroundColor(0, 0, 0, 0)
 
         anim = Animation(
             angle=359,
