@@ -54,7 +54,7 @@ class PandaView(Widget):
         glEnable(GL_DEPTH_TEST)
         glEnable(GL_CULL_FACE)
         PandaClock.tick()
-        self.msb.graphicsEngine.renderFrame()
+        self.msb.taskMgr.step()
 
         self.msb.camera.setPos(Point3(*self.cam_pos))
         self.msb.camera.lookAt(Point3(*self.cam_lookat), Vec3(0, 0, 1))

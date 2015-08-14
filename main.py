@@ -19,6 +19,7 @@ PandaView:
         ''')
 
         self.model = root.load_model('Kivy.egg')
+        root.msb.taskMgr.add(self.update, 'update')
 
         '''
         anim = Animation(
@@ -33,7 +34,8 @@ PandaView:
 
         return root
 
-    def on_angle(self, *args):
-        self.model.setHpr(args[1], 0, 0)
+    def update(self, task):
+        self.model.setHpr(self.model, 1, 0, 0)
+        return task.cont
 
 Test().run()

@@ -36,7 +36,7 @@ class ModelShowbase(ShowBase):
         from kivy.core.window import Window
         loadPrcFileData('', 'win-size %d %d' % Window.size)
         ShowBase.__init__(self)
-        self.render.setDepthTest(False, 100)
+        #self.render.setDepthTest(False, 100)
         self.setup_lights()
 
     def setup_lights(self):
