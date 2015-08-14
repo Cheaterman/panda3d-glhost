@@ -1,0 +1,1010 @@
+From 9683cd0b1b949950193a557dd5957a30d6528bab Mon Sep 17 00:00:00 2001
+From: The Cheaterman <the.cheaterman@gmail.com>
+Date: Thu, 13 Aug 2015 21:57:53 +0200
+Subject: [PATCH] Panda3D GLHost patch
+
+---
+ makepanda/makepanda.py                            |  17 ++
+ panda/src/glhdisplay/Sources.pp                   |  26 +++
+ panda/src/glhdisplay/config_glhdisplay.cxx        |  69 +++++++
+ panda/src/glhdisplay/config_glhdisplay.h          |  26 +++
+ panda/src/glhdisplay/glhGraphicsPipe.I            |  13 ++
+ panda/src/glhdisplay/glhGraphicsPipe.cxx          | 108 ++++++++++
+ panda/src/glhdisplay/glhGraphicsPipe.h            |  71 +++++++
+ panda/src/glhdisplay/glhGraphicsStateGuardian.I   |  13 ++
+ panda/src/glhdisplay/glhGraphicsStateGuardian.cxx |  96 +++++++++
+ panda/src/glhdisplay/glhGraphicsStateGuardian.h   |  68 ++++++
+ panda/src/glhdisplay/glhGraphicsWindow.I          |  13 ++
+ panda/src/glhdisplay/glhGraphicsWindow.cxx        | 241 ++++++++++++++++++++++
+ panda/src/glhdisplay/glhGraphicsWindow.h          |  70 +++++++
+ panda/src/glhdisplay/glhdisplay_composite.cxx     |   4 +
+ panda/src/pandabase/pandasymbols.h                |   8 +
+ 15 files changed, 843 insertions(+)
+ create mode 100644 panda/src/glhdisplay/Sources.pp
+ create mode 100644 panda/src/glhdisplay/config_glhdisplay.cxx
+ create mode 100644 panda/src/glhdisplay/config_glhdisplay.h
+ create mode 100644 panda/src/glhdisplay/glhGraphicsPipe.I
+ create mode 100644 panda/src/glhdisplay/glhGraphicsPipe.cxx
+ create mode 100644 panda/src/glhdisplay/glhGraphicsPipe.h
+ create mode 100644 panda/src/glhdisplay/glhGraphicsStateGuardian.I
+ create mode 100644 panda/src/glhdisplay/glhGraphicsStateGuardian.cxx
+ create mode 100644 panda/src/glhdisplay/glhGraphicsStateGuardian.h
+ create mode 100644 panda/src/glhdisplay/glhGraphicsWindow.I
+ create mode 100644 panda/src/glhdisplay/glhGraphicsWindow.cxx
+ create mode 100644 panda/src/glhdisplay/glhGraphicsWindow.h
+ create mode 100644 panda/src/glhdisplay/glhdisplay_composite.cxx
+
+diff --git a/makepanda/makepanda.py b/makepanda/makepanda.py
+index b1b31aa..27c9bf1 100755
+--- a/makepanda/makepanda.py
++++ b/makepanda/makepanda.py
+@@ -77,6 +77,7 @@ PkgListSet(["PYTHON", "DIRECT",                        # Python support
+   "GL", "GLES", "GLES2"] + DXVERSIONS + ["TINYDISPLAY", "NVIDIACG", "CGGL", # 3D graphics
+   "EGL",                                               # OpenGL (ES) integration
+   "EIGEN",                                             # Linear algebra acceleration
++  "GLHOST",                                            # Running in GL hosted
+   "OPENAL", "FMODEX",                                  # Audio playback
+   "VORBIS", "FFMPEG", "SWSCALE", "SWRESAMPLE",         # Audio decoding
+   "ODE", "PHYSX", "BULLET", "PANDAPHYSICS",            # Physics
+@@ -1600,6 +1601,7 @@ def CompileLink(dll, obj, opts):
+                 if ("MODULE" not in opts): cmd += " -Wl,-soname=" + os.path.basename(dll)
+                 cmd += ' -o ' + dll + ' -L' + GetOutputDir() + '/lib -L' + GetOutputDir() + '/tmp'
+ 
++        cmd += ' -Wl,--no-as-needed'
+         for x in obj:
+             if GetOrigExt(x) != ".dat":
+                 cmd += ' ' + x
+@@ -2022,6 +2024,7 @@ def CompileAnything(target, inputs, opts, progress = None):
+ DTOOL_CONFIG=[
+     #_Variable_________________________Windows___________________Unix__________
+     ("HAVE_PYTHON",                    '1',                      '1'),
++    ("USE_GLHOST",                     'UNDEF',                  '1'),
+     ("USE_DEBUG_PYTHON",               'UNDEF',                  'UNDEF'),
+     ("PYTHON_FRAMEWORK",               'UNDEF',                  'UNDEF'),
+     ("COMPILE_IN_DEFAULT_FONT",        '1',                      '1'),
+@@ -2923,6 +2926,7 @@ else:
+     CopyAllHeaders('panda/src/x11display')
+     CopyAllHeaders('panda/src/glxdisplay')
+ CopyAllHeaders('panda/src/egldisplay')
++CopyAllHeaders('panda/src/glhdisplay')
+ CopyAllHeaders('panda/metalibs/pandagl')
+ CopyAllHeaders('panda/metalibs/pandagles')
+ CopyAllHeaders('panda/metalibs/pandagles2')
+@@ -4511,6 +4515,19 @@ if (PkgSkip("EGL")==0 and PkgSkip("GLES2")==0 and PkgSkip("X11")==0 and not RUNT
+   TargetAdd('libpandagles2.dll', opts=['MODULE', 'GLES2', 'EGL', 'X11', 'XRANDR', 'XF86DGA', 'XCURSOR'])
+ 
+ #
++# DIRECTORY: panda/src/glhdisplay/
++#
++
++if (not RUNTIME and True):
++  OPTS=['DIR:panda/src/glhdisplay', 'BUILDING:GLHDISPLAY', 'CGGL']
++  TargetAdd('glhdisplay_composite.obj', opts=OPTS, input='glhdisplay_composite.cxx')
++  TargetAdd('libglhdisplay.dll', input='glhdisplay_composite.obj')
++  TargetAdd('libglhdisplay.dll', input='p3glgsg_config_glgsg.obj')
++  TargetAdd('libglhdisplay.dll', input='p3glgsg_glgsg.obj')
++  TargetAdd('libglhdisplay.dll', input=COMMON_PANDA_LIBS)
++  TargetAdd('libglhdisplay.dll', opts=['MODULE', 'GL', 'CGGL'])
++
++#
+ # DIRECTORY: panda/src/ode/
+ #
+ if (PkgSkip("ODE")==0 and not RUNTIME):
+diff --git a/panda/src/glhdisplay/Sources.pp b/panda/src/glhdisplay/Sources.pp
+new file mode 100644
+index 0000000..ed1847a
+--- /dev/null
++++ b/panda/src/glhdisplay/Sources.pp
+@@ -0,0 +1,26 @@
+++#define BUILD_DIRECTORY $[HAVE_GLHOST]
+++#define BUILDING_DLL BUILDING_GLHDISPLAY
+++
+++#define OTHER_LIBS interrogatedb:c dconfig:c dtoolconfig:m \
+++                   dtoolutil:c dtoolbase:c dtool:m prc:c
+++
+++#begin lib_target
+++  #define TARGET glhdisplay
+++  #define LOCAL_LIBS \
+++    gsgbase gobj display
+++
+++  #define COMBINED_SOURCES $[TARGET]_composite.cxx
+++
+++  #define SOURCES \
+++    config_glhdisplay.h \
+++    glhGraphicsStateGuardian.h glhGraphicsStateGuardian.I \
+++    glhGraphicsPipe.I glhGraphicsPipe.h \
+++    glhGraphicsWindow.h glhGraphicsWindow.I
+++
+++  #define INCLUDED_SOURCES \
+++    config_glhdisplay.cxx \
+++    glhGraphicsStateGuardian.cxx \
+++    glhGraphicsPipe.cxx \
+++    glhGraphicsWindow.cxx
+++
+++#end lib_target
+diff --git a/panda/src/glhdisplay/config_glhdisplay.cxx b/panda/src/glhdisplay/config_glhdisplay.cxx
+new file mode 100644
+index 0000000..6ef86ff
+--- /dev/null
++++ b/panda/src/glhdisplay/config_glhdisplay.cxx
+@@ -0,0 +1,69 @@
++// Filename: config_glhdisplay.cxx
++// Created by:  drose (24Apr08)
++//
++////////////////////////////////////////////////////////////////////
++//
++// PANDA 3D SOFTWARE
++// Copyright (c) Carnegie Mellon University.  All rights reserved.
++//
++// All use of this software is subject to the terms of the revised BSD
++// license.  You should have received a copy of this license along
++// with this source code in a file named "LICENSE."
++//
++////////////////////////////////////////////////////////////////////
++
++#include "config_glhdisplay.h"
++#include "glhGraphicsPipe.h"
++#include "glhGraphicsWindow.h"
++#include "glhGraphicsStateGuardian.h"
++#include "graphicsPipeSelection.h"
++#include "dconfig.h"
++#include "pandaSystem.h"
++
++Configure(config_glhdisplay);
++NotifyCategoryDef(glhdisplay, "display");
++
++ConfigureFn(config_glhdisplay) {
++  init_libglhdisplay();
++}
++
++////////////////////////////////////////////////////////////////////
++//     Function: init_libglhdisplay
++//  Description: Initializes the library.  This must be called at
++//               least once before any of the functions or classes in
++//               this library can be used.  Normally it will be
++//               called by the static initializers and need not be
++//               called explicitly, but special cases exist.
++////////////////////////////////////////////////////////////////////
++void
++init_libglhdisplay() {
++  static bool initialized = false;
++  if (initialized) {
++    return;
++  }
++  initialized = true;
++
++  GlhGraphicsStateGuardian::init_type();
++  GlhGraphicsPipe::init_type();
++  GlhGraphicsWindow::init_type();
++
++  PandaSystem *ps = PandaSystem::get_global_ptr();
++  ps->add_system("GlhPanda");
++
++  GraphicsPipeSelection *selection = GraphicsPipeSelection::get_global_ptr();
++
++  selection->add_pipe_type(GlhGraphicsPipe::get_class_type(),
++                           GlhGraphicsPipe::pipe_constructor);
++  ps->set_system_tag("GlhPanda", "native_window_system", "GL Host");
++  ps->set_system_tag("GlhPanda", "", "");
++}
++
++////////////////////////////////////////////////////////////////////
++//     Function: get_pipe_type_glhdisplay
++//  Description: Returns the TypeHandle index of the recommended
++//               graphics pipe type defined by this module.
++////////////////////////////////////////////////////////////////////
++int
++get_pipe_type_glhdisplay() {
++  return GlhGraphicsPipe::get_class_type().get_index();
++}
+diff --git a/panda/src/glhdisplay/config_glhdisplay.h b/panda/src/glhdisplay/config_glhdisplay.h
+new file mode 100644
+index 0000000..c719e57
+--- /dev/null
++++ b/panda/src/glhdisplay/config_glhdisplay.h
+@@ -0,0 +1,26 @@
++// Filename: config_glhdisplay.h
++// Created by: Mathieu Virbel <mat@kivy.org>
++//
++////////////////////////////////////////////////////////////////////
++//
++// PANDA 3D SOFTWARE
++// Copyright (c) Carnegie Mellon University.  All rights reserved.
++//
++// All use of this software is subject to the terms of the revised BSD
++// license.  You should have received a copy of this license along
++// with this source code in a file named "LICENSE."
++//
++////////////////////////////////////////////////////////////////////
++
++#ifndef CONFIG_GLHDISPLAY_H
++#define CONFIG_GLHDISPLAY_H
++
++#include "pandabase.h"
++#include "notifyCategoryProxy.h"
++
++NotifyCategoryDecl(glhdisplay, EXPCL_GLHDISPLAY, EXPTP_GLHDISPLAY);
++
++extern EXPCL_GLHDISPLAY void init_libglhdisplay();
++extern "C" EXPCL_GLHDISPLAY int get_pipe_type_glhdisplay();
++
++#endif
+diff --git a/panda/src/glhdisplay/glhGraphicsPipe.I b/panda/src/glhdisplay/glhGraphicsPipe.I
+new file mode 100644
+index 0000000..5afdae9
+--- /dev/null
++++ b/panda/src/glhdisplay/glhGraphicsPipe.I
+@@ -0,0 +1,13 @@
++// Filename: glhGraphicsPipe.I
++// Created by: Mathieu Virbel <mat@kivy.org>
++//
++////////////////////////////////////////////////////////////////////
++//
++// PANDA 3D SOFTWARE
++// Copyright (c) Carnegie Mellon University.  All rights reserved.
++//
++// All use of this software is subject to the terms of the revised BSD
++// license.  You should have received a copy of this license along
++// with this source code in a file named "LICENSE."
++//
++////////////////////////////////////////////////////////////////////
+diff --git a/panda/src/glhdisplay/glhGraphicsPipe.cxx b/panda/src/glhdisplay/glhGraphicsPipe.cxx
+new file mode 100644
+index 0000000..25f2f31
+--- /dev/null
++++ b/panda/src/glhdisplay/glhGraphicsPipe.cxx
+@@ -0,0 +1,108 @@
++// Filename: glhGraphicsPipe.cxx
++// Created by:  Mathieu Virbel <mat@kivy.org>
++//
++////////////////////////////////////////////////////////////////////
++//
++// PANDA 3D SOFTWARE
++// Copyright (c) Carnegie Mellon University.  All rights reserved.
++//
++// All use of this software is subject to the terms of the revised BSD
++// license.  You should have received a copy of this license along
++// with this source code in a file named "LICENSE."
++//
++////////////////////////////////////////////////////////////////////
++
++#include "pandabase.h"
++
++#include "glhGraphicsPipe.h"
++#include "glhGraphicsWindow.h"
++#include "glhGraphicsStateGuardian.h"
++#include "config_glhdisplay.h"
++#include "frameBufferProperties.h"
++
++TypeHandle GlhGraphicsPipe::_type_handle;
++
++////////////////////////////////////////////////////////////////////
++//     Function: GlhGraphicsPipe::Constructor
++//       Access: Public
++//  Description: 
++////////////////////////////////////////////////////////////////////
++GlhGraphicsPipe::
++GlhGraphicsPipe(const string &display) : GraphicsPipe() {
++	_is_valid = true;
++}
++
++////////////////////////////////////////////////////////////////////
++//     Function: GlhGraphicsPipe::Destructor
++//       Access: Public, Virtual
++//  Description: 
++////////////////////////////////////////////////////////////////////
++GlhGraphicsPipe::
++~GlhGraphicsPipe() {
++}
++
++////////////////////////////////////////////////////////////////////
++//     Function: GlhGraphicsPipe::get_interface_name
++//       Access: Published, Virtual
++//  Description: Returns the name of the rendering interface
++//               associated with this GraphicsPipe.  This is used to
++//               present to the user to allow him/her to choose
++//               between several possible GraphicsPipes available on a
++//               particular platform, so the name should be meaningful
++//               and unique for a given platform.
++////////////////////////////////////////////////////////////////////
++string GlhGraphicsPipe::
++get_interface_name() const {
++	return "GlhPanda";
++}
++
++////////////////////////////////////////////////////////////////////
++//     Function: GlhGraphicsPipe::pipe_constructor
++//       Access: Public, Static
++//  Description: This function is passed to the GraphicsPipeSelection
++//               object to allow the user to make a default
++//               GlhGraphicsPipe.
++////////////////////////////////////////////////////////////////////
++PT(GraphicsPipe) GlhGraphicsPipe::
++pipe_constructor() {
++	return new GlhGraphicsPipe;
++}
++
++////////////////////////////////////////////////////////////////////
++//     Function: GlhGraphicsPipe::make_output
++//       Access: Protected, Virtual
++//  Description: Creates a new window on the pipe, if possible.
++////////////////////////////////////////////////////////////////////
++PT(GraphicsOutput) GlhGraphicsPipe::
++make_output(const string &name,
++		const FrameBufferProperties &fb_prop,
++		const WindowProperties &win_prop,
++		int flags,
++		GraphicsEngine *engine,
++		GraphicsStateGuardian *gsg,
++		GraphicsOutput *host,
++		int retry,
++		bool &precertify) {
++
++	GlhGraphicsStateGuardian *glhgsg = 0;
++	if (gsg  !=  0) {
++		DCAST_INTO_R(glhgsg, gsg, NULL);
++	}
++
++	if (retry == 0 && _is_valid) {
++		if (((flags & BF_require_parasite) != 0)||
++				((flags & BF_refuse_window) != 0)||
++				((flags & BF_resizeable) != 0)||
++				((flags & BF_size_track_host) != 0)||
++				((flags & BF_rtt_cumulative) != 0)||
++				((flags & BF_can_bind_color) != 0)||
++				((flags & BF_can_bind_every) != 0)) {
++			return NULL;
++		}
++		return new GlhGraphicsWindow(engine, this, name, fb_prop, win_prop,
++				flags, gsg, host);
++	}
++
++	// Nothing else left to try.
++	return NULL;
++}
+diff --git a/panda/src/glhdisplay/glhGraphicsPipe.h b/panda/src/glhdisplay/glhGraphicsPipe.h
+new file mode 100644
+index 0000000..22e2f34
+--- /dev/null
++++ b/panda/src/glhdisplay/glhGraphicsPipe.h
+@@ -0,0 +1,71 @@
++// Filename: glhGraphicsPipe.h
++// Created by: Mathieu Virbel <mat@kivy.org>
++//
++////////////////////////////////////////////////////////////////////
++//
++// PANDA 3D SOFTWARE
++// Copyright (c) Carnegie Mellon University.  All rights reserved.
++//
++// All use of this software is subject to the terms of the revised BSD
++// license.  You should have received a copy of this license along
++// with this source code in a file named "LICENSE."
++//
++////////////////////////////////////////////////////////////////////
++
++#ifndef GLHGRAPHICSPIPE_H
++#define GLHGRAPHICSPIPE_H
++
++#include "pandabase.h"
++
++#include "graphicsWindow.h"
++#include "graphicsPipe.h"
++#include "glhGraphicsStateGuardian.h"
++#include "lightMutex.h"
++#include "lightReMutex.h"
++
++////////////////////////////////////////////////////////////////////
++//       Class : GlhGraphicsPipe
++// Description : This graphics pipe represents the interface for
++//               creating GlhPanda graphics windows
++////////////////////////////////////////////////////////////////////
++class EXPCL_GLHDISPLAY GlhGraphicsPipe : public GraphicsPipe {
++public:
++  GlhGraphicsPipe(const string &display = string());
++  virtual ~GlhGraphicsPipe();
++
++  virtual string get_interface_name() const;
++  static PT(GraphicsPipe) pipe_constructor();
++
++protected:
++  virtual PT(GraphicsOutput) make_output(const string &name,
++                                         const FrameBufferProperties &fb_prop,
++                                         const WindowProperties &win_prop,
++                                         int flags,
++                                         GraphicsEngine *engine,
++                                         GraphicsStateGuardian *gsg,
++                                         GraphicsOutput *host,
++                                         int retry,
++                                         bool &precertify);
++
++public:
++  static TypeHandle get_class_type() {
++    return _type_handle;
++  }
++  static void init_type() {
++    GraphicsPipe::init_type();
++    register_type(_type_handle, "GlhGraphicsPipe",
++                  GraphicsPipe::get_class_type());
++  }
++  virtual TypeHandle get_type() const {
++    return get_class_type();
++  }
++  virtual TypeHandle force_init_type() {init_type(); return get_class_type();}
++
++private:
++  static TypeHandle _type_handle;
++};
++
++#include "glhGraphicsPipe.I"
++
++#endif
++
+diff --git a/panda/src/glhdisplay/glhGraphicsStateGuardian.I b/panda/src/glhdisplay/glhGraphicsStateGuardian.I
+new file mode 100644
+index 0000000..3d36aee
+--- /dev/null
++++ b/panda/src/glhdisplay/glhGraphicsStateGuardian.I
+@@ -0,0 +1,13 @@
++// Filename: glhGraphicsStateGuardian.I
++// Created by: Mathieu Virbel <mat@kivy.org>
++//
++////////////////////////////////////////////////////////////////////
++//
++// PANDA 3D SOFTWARE
++// Copyright (c) Carnegie Mellon University.  All rights reserved.
++//
++// All use of this software is subject to the terms of the revised BSD
++// license.  You should have received a copy of this license along
++// with this source code in a file named "LICENSE."
++//
++////////////////////////////////////////////////////////////////////
+diff --git a/panda/src/glhdisplay/glhGraphicsStateGuardian.cxx b/panda/src/glhdisplay/glhGraphicsStateGuardian.cxx
+new file mode 100644
+index 0000000..c77e057
+--- /dev/null
++++ b/panda/src/glhdisplay/glhGraphicsStateGuardian.cxx
+@@ -0,0 +1,96 @@
++// Filename: glhGraphicsStateGuardian.cxx
++// Created by: Mathieu Virbel <mat@kivy.org>
++//
++////////////////////////////////////////////////////////////////////
++//
++// PANDA 3D SOFTWARE
++// Copyright (c) Carnegie Mellon University.  All rights reserved.
++//
++// All use of this software is subject to the terms of the revised BSD
++// license.  You should have received a copy of this license along
++// with this source code in a file named "LICENSE."
++//
++////////////////////////////////////////////////////////////////////
++
++#include "glhGraphicsStateGuardian.h"
++#include "dlfcn.h"
++
++TypeHandle GlhGraphicsStateGuardian::_type_handle;
++
++
++////////////////////////////////////////////////////////////////////
++//     Function: GlhGraphicsStateGuardian::Constructor
++//       Access: Public
++//  Description:
++////////////////////////////////////////////////////////////////////
++GlhGraphicsStateGuardian::
++GlhGraphicsStateGuardian(GraphicsEngine *engine, GraphicsPipe *pipe,
++		GlhGraphicsStateGuardian *share_with) :
++	GLGraphicsStateGuardian(engine, pipe)
++{
++	_libgl_handle = NULL;
++}
++
++////////////////////////////////////////////////////////////////////
++//     Function: GlhGraphicsStateGuardian::Destructor
++//       Access: Public
++//  Description:
++////////////////////////////////////////////////////////////////////
++GlhGraphicsStateGuardian::
++~GlhGraphicsStateGuardian() {
++}
++
++void GlhGraphicsStateGuardian::clear_before_callback() {
++#ifndef OPENGLES_2
++  _glUseProgram(0);
++  for ( int i = 0; i < 10; i++ ) {
++	  GLP(ActiveTexture)(GL_TEXTURE0 + i);
++	  GLP(BindTexture)(GL_TEXTURE_2D, 0);
++	  _glDisableVertexAttribArray(i);
++          _glBindBuffer(GL_ARRAY_BUFFER, 0);
++          _glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
++  }
++  GLP(DisableClientState)(GL_COLOR_ARRAY);
++  GLP(DisableClientState)(GL_TEXTURE_COORD_ARRAY);
++  GLP(DisableClientState)(GL_NORMAL_ARRAY);
++  GLP(DisableClientState)(GL_VERTEX_ARRAY);
++  _glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
++  _glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
++#endif
++  GLGraphicsStateGuardian::clear_before_callback();
++}
++
++//
++// FIXME This part is needed for some opengl symbol
++// Because the lookup is dynamic, this part should be done per platform
++// (Android and Window needed)
++//
++void *GlhGraphicsStateGuardian::
++do_get_extension_func(const char *name) {
++	nassertr(name != NULL, NULL);
++	return get_system_func(name);
++}
++
++void *GlhGraphicsStateGuardian::
++get_system_func(const char *name) {
++	if (_libgl_handle == (void *)NULL) {
++		// We open the current executable, rather than naming a particular
++		// library.  Presumably libGL.so (or whatever the library should
++		// be called) is already available in the current executable
++		// address space, so this is more portable than insisting on a
++		// particular shared library name.
++		_libgl_handle = dlopen(NULL, RTLD_LAZY);
++		nassertr(_libgl_handle != (void *)NULL, NULL);
++
++		// If that doesn't locate the symbol we expected, then fall back
++		// to loading the GL library by its usual name.
++		if (dlsym(_libgl_handle, name) == NULL) {
++			dlclose(_libgl_handle);
++			printf("!!! %s not found in executable; looking in libGL.so instead.\n", name);
++			_libgl_handle = dlopen("libGL.so", RTLD_LAZY);
++			nassertr(_libgl_handle != (void *)NULL, NULL);
++		}
++	}
++
++	return dlsym(_libgl_handle, name);
++}
+diff --git a/panda/src/glhdisplay/glhGraphicsStateGuardian.h b/panda/src/glhdisplay/glhGraphicsStateGuardian.h
+new file mode 100644
+index 0000000..a00e881
+--- /dev/null
++++ b/panda/src/glhdisplay/glhGraphicsStateGuardian.h
+@@ -0,0 +1,68 @@
++// Filename: glhGraphicsStateGuardian.h
++// Created by: Mathieu Virbel <mat@kivy.org>
++//
++////////////////////////////////////////////////////////////////////
++//
++// PANDA 3D SOFTWARE
++// Copyright (c) Carnegie Mellon University.  All rights reserved.
++//
++// All use of this software is subject to the terms of the revised BSD
++// license.  You should have received a copy of this license along
++// with this source code in a file named "LICENSE."
++//
++////////////////////////////////////////////////////////////////////
++
++#ifndef GLHGRAPHICSSTATEGUARDIAN_H
++#define GLHGRAPHICSSTATEGUARDIAN_H
++
++#include "pandabase.h"
++
++#include "glgsg.h"
++
++////////////////////////////////////////////////////////////////////
++//       Class : GlhGraphicsStateGuardian
++// Description : An interface to the GlhPanda software rendering code
++//               within this module.
++//
++//               GlhPanda takes its name from GlhGL, the
++//               public-domain software renderer (see
++//               http://fabrice.bellard.free.fr/GlhGL/ ) from which
++//               this code originated.  It has since been heavily
++//               modified, to integrate it closely with Panda, and to
++//               add additional features such as blending, filtering,
++//               and multitexturing.
++////////////////////////////////////////////////////////////////////
++class EXPCL_GLHDISPLAY GlhGraphicsStateGuardian : public GLGraphicsStateGuardian {
++friend class GlhGraphicsWindow;
++public:
++  GlhGraphicsStateGuardian(GraphicsEngine *engine, GraphicsPipe *pipe,
++                            GlhGraphicsStateGuardian *share_with);
++
++  virtual ~GlhGraphicsStateGuardian();
++
++  void *get_system_func(const char *name);
++  void *do_get_extension_func(const char *name);
++  void clear_before_callback();
++
++public:
++  static TypeHandle get_class_type() {
++    return _type_handle;
++  }
++  static void init_type() {
++    GLGraphicsStateGuardian::init_type();
++    register_type(_type_handle, "GlhGraphicsStateGuardian",
++                  GLGraphicsStateGuardian::get_class_type());
++  }
++  virtual TypeHandle get_type() const {
++    return get_class_type();
++  }
++  virtual TypeHandle force_init_type() {init_type(); return get_class_type();}
++
++private:
++  void *_libgl_handle;
++  static TypeHandle _type_handle;
++};
++
++#include "glhGraphicsStateGuardian.I"
++
++#endif
+diff --git a/panda/src/glhdisplay/glhGraphicsWindow.I b/panda/src/glhdisplay/glhGraphicsWindow.I
+new file mode 100644
+index 0000000..055790b
+--- /dev/null
++++ b/panda/src/glhdisplay/glhGraphicsWindow.I
+@@ -0,0 +1,13 @@
++// Filename: glhGraphicsWindow.I
++// Created by: Mathieu Virbel <mat@kivy.org>
++//
++////////////////////////////////////////////////////////////////////
++//
++// PANDA 3D SOFTWARE
++// Copyright (c) Carnegie Mellon University.  All rights reserved.
++//
++// All use of this software is subject to the terms of the revised BSD
++// license.  You should have received a copy of this license along
++// with this source code in a file named "LICENSE."
++//
++////////////////////////////////////////////////////////////////////
+diff --git a/panda/src/glhdisplay/glhGraphicsWindow.cxx b/panda/src/glhdisplay/glhGraphicsWindow.cxx
+new file mode 100644
+index 0000000..b134897
+--- /dev/null
++++ b/panda/src/glhdisplay/glhGraphicsWindow.cxx
+@@ -0,0 +1,241 @@
++// Filename: glhGraphicsWindow.cxx
++// Created by: Mathieu Virbel <mat@kivy.org>
++//
++////////////////////////////////////////////////////////////////////
++//
++// PANDA 3D SOFTWARE
++// Copyright (c) Carnegie Mellon University.  All rights reserved.
++//
++// All use of this software is subject to the terms of the revised BSD
++// license.  You should have received a copy of this license along
++// with this source code in a file named "LICENSE."
++//
++////////////////////////////////////////////////////////////////////
++
++#include "pandabase.h"
++
++#include "glhGraphicsWindow.h"
++#include "glhGraphicsStateGuardian.h"
++#include "glhGraphicsPipe.h"
++#include "config_glhdisplay.h"
++
++#include "graphicsPipe.h"
++#include "keyboardButton.h"
++#include "mouseButton.h"
++#include "clockObject.h"
++#include "pStatTimer.h"
++#include "textEncoder.h"
++#include "throw_event.h"
++#include "lightReMutexHolder.h"
++#include "nativeWindowHandle.h"
++
++TypeHandle GlhGraphicsWindow::_type_handle;
++
++////////////////////////////////////////////////////////////////////
++//     Function: GlhGraphicsWindow::Constructor
++//       Access: Public
++//  Description:
++////////////////////////////////////////////////////////////////////
++GlhGraphicsWindow::
++GlhGraphicsWindow(GraphicsEngine *engine, GraphicsPipe *pipe, 
++		const string &name,
++		const FrameBufferProperties &fb_prop,
++		const WindowProperties &win_prop,
++		int flags,
++		GraphicsStateGuardian *gsg,
++		GraphicsOutput *host) :
++	GraphicsWindow(engine, pipe, name, fb_prop, win_prop, flags, gsg, host)
++{
++	_is_valid = true;
++	//_gc = (GC)NULL;
++	//_reduced_frame_buffer = NULL;
++	//_full_frame_buffer = NULL;
++	update_pixel_factor();
++}
++
++////////////////////////////////////////////////////////////////////
++//     Function: GlhGraphicsWindow::Destructor
++//       Access: Public, Virtual
++//  Description:
++////////////////////////////////////////////////////////////////////
++GlhGraphicsWindow::
++~GlhGraphicsWindow() {
++}
++
++////////////////////////////////////////////////////////////////////
++//     Function: GlhGraphicsWindow::begin_frame
++//       Access: Public, Virtual
++//  Description: This function will be called within the draw thread
++//               before beginning rendering for a given frame.  It
++//               should do whatever setup is required, and return true
++//               if the frame should be rendered, or false if it
++//               should be skipped.
++////////////////////////////////////////////////////////////////////
++bool GlhGraphicsWindow::
++begin_frame(FrameMode mode, Thread *current_thread) {
++	PStatTimer timer(_make_current_pcollector, current_thread);
++
++	begin_frame_spam(mode);
++	if (_gsg == (GraphicsStateGuardian *)NULL) {
++		return false;
++	}
++	GlhGraphicsStateGuardian *glhgsg;
++	DCAST_INTO_R(glhgsg, _gsg, false);
++
++	/**
++	  if (_reduced_frame_buffer != (ZBuffer *)NULL) {
++	  glhgsg->_current_frame_buffer = _reduced_frame_buffer;
++	  } else {
++	  glhgsg->_current_frame_buffer = _full_frame_buffer;
++	  }
++	 **/
++	glhgsg->reset_if_new();
++
++        glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, (GLint*)&glhgsg->_current_fbo);
++
++	_gsg->set_current_properties(&get_fb_properties());
++	_gsg->clear_before_callback();
++	return _gsg->begin_frame(current_thread);
++}
++
++////////////////////////////////////////////////////////////////////
++//     Function: GlhGraphicsWindow::end_frame
++//       Access: Public, Virtual
++//  Description: This function will be called within the draw thread
++//               after rendering is completed for a given frame.  It
++//               should do whatever finalization is required.
++////////////////////////////////////////////////////////////////////
++void GlhGraphicsWindow::clear(Thread *c) {
++}
++
++void GlhGraphicsWindow::
++end_frame(FrameMode mode, Thread *current_thread) {
++	end_frame_spam(mode);
++	nassertv(_gsg != (GraphicsStateGuardian *)NULL);
++
++	_gsg->end_frame(current_thread);
++	_gsg->clear_before_callback();
++	/**
++
++	  if (mode == FM_render) {
++	// end_render_texture();
++	copy_to_textures();
++	}
++
++	_gsg->end_frame(current_thread);
++	_gsg->clear_before_callback();
++
++	if (mode == FM_render) {
++	trigger_flip();
++	if (_one_shot) {
++	prepare_for_deletion();
++	}
++	clear_cube_map_selection();
++	}
++	 **/
++}
++
++////////////////////////////////////////////////////////////////////
++//     Function: GlhGraphicsWindow::begin_flip
++//       Access: Public, Virtual
++//  Description: This function will be called within the draw thread
++//               after end_frame() has been called on all windows, to
++//               initiate the exchange of the front and back buffers.
++//
++//               This should instruct the window to prepare for the
++//               flip at the next video sync, but it should not wait.
++//
++//               We have the two separate functions, begin_flip() and
++//               end_flip(), to make it easier to flip all of the
++//               windows at the same time.
++////////////////////////////////////////////////////////////////////
++void GlhGraphicsWindow::
++begin_flip() {
++}
++
++////////////////////////////////////////////////////////////////////
++//     Function: GlhGraphicsWindow::supports_pixel_zoom
++//       Access: Published, Virtual
++//  Description: Returns true if a call to set_pixel_zoom() will be
++//               respected, false if it will be ignored.  If this
++//               returns false, then get_pixel_factor() will always
++//               return 1.0, regardless of what value you specify for
++//               set_pixel_zoom().
++//
++//               This may return false if the underlying renderer
++//               doesn't support pixel zooming, or if you have called
++//               this on a DisplayRegion that doesn't have both
++//               set_clear_color() and set_clear_depth() enabled.
++////////////////////////////////////////////////////////////////////
++bool GlhGraphicsWindow::
++supports_pixel_zoom() const {
++	return false;
++}
++
++////////////////////////////////////////////////////////////////////
++//     Function: GlhGraphicsWindow::process_events
++//       Access: Public, Virtual
++//  Description: Do whatever processing is necessary to ensure that
++//               the window responds to user events.  Also, honor any
++//               requests recently made via request_properties()
++//
++//               This function is called only within the window
++//               thread.
++////////////////////////////////////////////////////////////////////
++void GlhGraphicsWindow::
++process_events() {
++	GraphicsWindow::process_events();
++}
++
++////////////////////////////////////////////////////////////////////
++//     Function: GlhGraphicsWindow::close_window
++//       Access: Protected, Virtual
++//  Description: Closes the window right now.  Called from the window
++//               thread.
++////////////////////////////////////////////////////////////////////
++void GlhGraphicsWindow::
++close_window() {
++	if (_gsg != (GraphicsStateGuardian *)NULL) {
++		GlhGraphicsStateGuardian *glhgsg;
++		DCAST_INTO_V(glhgsg, _gsg);
++		//glhgsg->_current_frame_buffer = NULL;
++		_gsg.clear();
++		//_active = false;
++	}
++
++	GraphicsWindow::close_window();
++}
++
++////////////////////////////////////////////////////////////////////
++//     Function: GlhGraphicsWindow::open_window
++//       Access: Protected, Virtual
++//  Description: Opens the window right now.  Called from the window
++//               thread.  Returns true if the window is successfully
++//               opened, or false if there was a problem.
++////////////////////////////////////////////////////////////////////
++bool GlhGraphicsWindow::
++open_window() {
++	GlhGraphicsPipe *glh_pipe;
++	DCAST_INTO_R(glh_pipe, _pipe, false);
++
++
++	// GSG Creation/Initialization
++	GlhGraphicsStateGuardian *glhgsg;
++	if (_gsg == 0) {
++		// There is no old gsg.  Create a new one.
++		glhgsg = new GlhGraphicsStateGuardian(_engine, _pipe, NULL);
++		_gsg = glhgsg;
++	} else {
++		DCAST_INTO_R(glhgsg, _gsg, false);
++	}
++
++	glhgsg->reset_if_new();
++	if (!glhgsg->is_valid()) {
++		close_window();
++		return false;
++	}
++
++        glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, (GLint*)&glhgsg->_current_fbo);
++
++	return true;
++}
+diff --git a/panda/src/glhdisplay/glhGraphicsWindow.h b/panda/src/glhdisplay/glhGraphicsWindow.h
+new file mode 100644
+index 0000000..56e6d68
+--- /dev/null
++++ b/panda/src/glhdisplay/glhGraphicsWindow.h
+@@ -0,0 +1,70 @@
++// Filename: glhGraphicsWindow.h
++// Created by: Mathieu Virbel <mat@kivy.org>
++//
++////////////////////////////////////////////////////////////////////
++//
++// PANDA 3D SOFTWARE
++// Copyright (c) Carnegie Mellon University.  All rights reserved.
++//
++// All use of this software is subject to the terms of the revised BSD
++// license.  You should have received a copy of this license along
++// with this source code in a file named "LICENSE."
++//
++////////////////////////////////////////////////////////////////////
++
++#ifndef GLHGRAPHICSWINDOW_H
++#define GLHGRAPHICSWINDOW_H
++
++#include "pandabase.h"
++
++#include "glhGraphicsPipe.h"
++#include "graphicsWindow.h"
++
++////////////////////////////////////////////////////////////////////
++//       Class : GlhGraphicsWindow
++// Description : Fake all window call
++////////////////////////////////////////////////////////////////////
++class EXPCL_GLHDISPLAY GlhGraphicsWindow : public GraphicsWindow {
++public:
++  GlhGraphicsWindow(GraphicsEngine *engine, GraphicsPipe *pipe, 
++                      const string &name,
++                      const FrameBufferProperties &fb_prop,
++                      const WindowProperties &win_prop,
++                      int flags,
++                      GraphicsStateGuardian *gsg,
++                      GraphicsOutput *host);
++  virtual ~GlhGraphicsWindow();
++
++  virtual bool begin_frame(FrameMode mode, Thread *current_thread);
++  virtual void end_frame(FrameMode mode, Thread *current_thread);
++  virtual void begin_flip();
++  virtual bool supports_pixel_zoom() const;
++
++  virtual void process_events();
++
++protected:
++  virtual void close_window();
++  virtual bool open_window();
++  void clear(Thread *current_thread);
++
++public:
++  static TypeHandle get_class_type() {
++    return _type_handle;
++  }
++  static void init_type() {
++    GraphicsWindow::init_type();
++    register_type(_type_handle, "GlhGraphicsWindow",
++                  GraphicsWindow::get_class_type());
++  }
++  virtual TypeHandle get_type() const {
++    return get_class_type();
++  }
++  virtual TypeHandle force_init_type() {init_type(); return get_class_type();}
++
++private:
++  static TypeHandle _type_handle;
++};
++
++#include "glhGraphicsWindow.I"
++
++#endif
+diff --git a/panda/src/glhdisplay/glhdisplay_composite.cxx b/panda/src/glhdisplay/glhdisplay_composite.cxx
+new file mode 100644
+index 0000000..77aca0d
+--- /dev/null
++++ b/panda/src/glhdisplay/glhdisplay_composite.cxx
+@@ -0,0 +1,4 @@
++#include "config_glhdisplay.cxx"
++#include "glhGraphicsStateGuardian.cxx"
++#include "glhGraphicsPipe.cxx"
++#include "glhGraphicsWindow.cxx"
+diff --git a/panda/src/pandabase/pandasymbols.h b/panda/src/pandabase/pandasymbols.h
+index 235b8b9..5390c00 100644
+--- a/panda/src/pandabase/pandasymbols.h
++++ b/panda/src/pandabase/pandasymbols.h
+@@ -254,6 +254,14 @@
+   #define EXPTP_SHADER IMPORT_TEMPL
+ #endif
+ 
++#ifdef BUILDING_GLHDISPLAY
++  #define EXPCL_GLHDISPLAY EXPORT_CLASS
++  #define EXPTP_GLHDISPLAY EXPORT_TEMPL
++#else
++  #define EXPCL_GLHDISPLAY IMPORT_CLASS
++  #define EXPTP_GLHDISPLAY IMPORT_TEMPL
++#endif
++
+ #ifdef BUILDING_TINYDISPLAY
+   #define EXPCL_TINYDISPLAY EXPORT_CLASS
+   #define EXPTP_TINYDISPLAY EXPORT_TEMPL
+-- 
+2.4.6
+
