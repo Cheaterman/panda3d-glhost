@@ -1,9 +1,11 @@
 from kivy.app import App
 from kivy.lang import Builder
-#from kivy.animation import Animation
 from kivy.properties import ObjectProperty, NumericProperty
 
 from pandaview import PandaView
+
+# AFTER ShowBase! Don't ask me why!
+from kivy.animation import Animation
 
 
 class Test(App):
@@ -19,23 +21,20 @@ PandaView:
         ''')
 
         self.model = root.load_model('Kivy.egg')
-        root.msb.taskMgr.add(self.update, 'update')
 
-        '''
         anim = Animation(
-            angle=360,
-            d=30
+            angle=359,
+            d=3
         ) + Animation(
             angle=0,
             d=0
         )
+        anim.repeat = True
         anim.start(self)
-        '''
 
         return root
 
-    def update(self, task):
-        self.model.setHpr(self.model, 1, 0, 0)
-        return task.cont
+    def on_angle(self, *args):
+        self.model.setHpr(args[1], 0, 0)
 
 Test().run()

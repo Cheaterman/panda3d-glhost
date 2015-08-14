@@ -3,7 +3,7 @@ Panda View
 ==========
 '''
 
-__all__ = ('PandaClock', 'PandaView')
+__all__ = ('PandaView')
 
 from kivy.clock import Clock, ClockBase
 from kivy.uix.widget import Widget
@@ -18,8 +18,6 @@ from panda3d.core import CollisionTraverser, CollisionRay, \
                          CollisionNode, CollisionHandlerQueue, \
                          LVector2i, Vec3, Point3, \
                          WindowProperties
-
-PandaClock = ClockBase()
 
 class PandaView(Widget):
     cam_pos = ListProperty([0, 0, 0])
@@ -41,7 +39,6 @@ class PandaView(Widget):
         self.msb.camLens.setFov(52.0)
         self.msb.camLens.setNearFar(1.0, 10000.0)
 
-        Clock.schedule_interval(self.update_panda, 1 / 60.)
         with self.canvas:
             self.fbo = Fbo(size=self.size,
                            clear_color=(.3, .3, .3, .2))
@@ -49,11 +46,12 @@ class PandaView(Widget):
             self.viewport = Rectangle(pos=self.pos, size=self.size, texture=self.fbo.texture)
             Callback(self.draw_panda, reset_context=True)
 
+        Clock.schedule_interval(self.update_panda, 1 / 60.)
+
     def draw_panda(self, instr):
         self.fbo.clear_buffer()
         glEnable(GL_DEPTH_TEST)
         glEnable(GL_CULL_FACE)
-        PandaClock.tick()
         self.msb.taskMgr.step()
 
         self.msb.camera.setPos(Point3(*self.cam_pos))
