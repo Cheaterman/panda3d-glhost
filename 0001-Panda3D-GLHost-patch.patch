@@ -1,10 +1,13 @@
-From 9683cd0b1b949950193a557dd5957a30d6528bab Mon Sep 17 00:00:00 2001
+From 125289d213e97ebe78281c29d04d648099212953 Mon Sep 17 00:00:00 2001
 From: The Cheaterman <the.cheaterman@gmail.com>
-Date: Thu, 13 Aug 2015 21:57:53 +0200
+Date: Thu, 13 Aug 2015 02:30:31 +0200
 Subject: [PATCH] Panda3D GLHost patch
 
 ---
- makepanda/makepanda.py                            |  17 ++
+ makepanda/makepanda.py                            |  19 +-
+ panda/src/bullet/bulletHeightfieldShape.I         |   8 +-
+ panda/src/bullet/bulletHeightfieldShape.cxx       |   2 +-
+ panda/src/bullet/bulletHeightfieldShape.h         |   2 +-
  panda/src/glhdisplay/Sources.pp                   |  26 +++
  panda/src/glhdisplay/config_glhdisplay.cxx        |  69 +++++++
  panda/src/glhdisplay/config_glhdisplay.h          |  26 +++
@@ -18,8 +21,9 @@ Subject: [PATCH] Panda3D GLHost patch
  panda/src/glhdisplay/glhGraphicsWindow.cxx        | 241 ++++++++++++++++++++++
  panda/src/glhdisplay/glhGraphicsWindow.h          |  70 +++++++
  panda/src/glhdisplay/glhdisplay_composite.cxx     |   4 +
+ panda/src/gobj/shader.cxx                         |   6 +-
  panda/src/pandabase/pandasymbols.h                |   8 +
- 15 files changed, 843 insertions(+)
+ 19 files changed, 853 insertions(+), 10 deletions(-)
  create mode 100644 panda/src/glhdisplay/Sources.pp
  create mode 100644 panda/src/glhdisplay/config_glhdisplay.cxx
  create mode 100644 panda/src/glhdisplay/config_glhdisplay.h
@@ -35,11 +39,15 @@ Subject: [PATCH] Panda3D GLHost patch
  create mode 100644 panda/src/glhdisplay/glhdisplay_composite.cxx
 
 diff --git a/makepanda/makepanda.py b/makepanda/makepanda.py
-index b1b31aa..27c9bf1 100755
+index d7269f7..27c9bf1 100755
 --- a/makepanda/makepanda.py
 +++ b/makepanda/makepanda.py
-@@ -77,6 +77,7 @@ PkgListSet(["PYTHON", "DIRECT",                        # Python support
-   "GL", "GLES", "GLES2"] + DXVERSIONS + ["TINYDISPLAY", "NVIDIACG", "CGGL", # 3D graphics
+@@ -74,9 +74,10 @@ if "MACOSX_DEPLOYMENT_TARGET" in os.environ:
+     OSXTARGET=os.environ["MACOSX_DEPLOYMENT_TARGET"]
+ 
+ PkgListSet(["PYTHON", "DIRECT",                        # Python support
+-  "GL", "GLES", "GLES2"] + DXVERSIONS + ["TINYDISPLAY", "NVIDIACG", # 3D graphics
++  "GL", "GLES", "GLES2"] + DXVERSIONS + ["TINYDISPLAY", "NVIDIACG", "CGGL", # 3D graphics
    "EGL",                                               # OpenGL (ES) integration
    "EIGEN",                                             # Linear algebra acceleration
 +  "GLHOST",                                            # Running in GL hosted
@@ -90,6 +98,57 @@ index b1b31aa..27c9bf1 100755
  # DIRECTORY: panda/src/ode/
  #
  if (PkgSkip("ODE")==0 and not RUNTIME):
+diff --git a/panda/src/bullet/bulletHeightfieldShape.I b/panda/src/bullet/bulletHeightfieldShape.I
+index 6803855..f974de9 100644
+--- a/panda/src/bullet/bulletHeightfieldShape.I
++++ b/panda/src/bullet/bulletHeightfieldShape.I
+@@ -35,8 +35,8 @@ BulletHeightfieldShape(const BulletHeightfieldShape &copy) :
+   _num_rows(copy._num_rows),
+   _num_cols(copy._num_cols) {
+ 
+-  _data = new float[_num_rows * _num_cols];
+-  memcpy(_data, copy._data, _num_rows * _num_cols * sizeof(float));
++  _data = new PN_stdfloat[_num_rows * _num_cols];
++  memcpy(_data, copy._data, _num_rows * _num_cols * sizeof(PN_stdfloat));
+ }
+ 
+ ////////////////////////////////////////////////////////////////////
+@@ -51,7 +51,7 @@ operator = (const BulletHeightfieldShape &copy) {
+   _num_rows = copy._num_rows;
+   _num_cols = copy._num_cols;
+ 
+-  _data = new float[_num_rows * _num_cols];
+-  memcpy(_data, copy._data, _num_rows * _num_cols * sizeof(float));
++  _data = new PN_stdfloat[_num_rows * _num_cols];
++  memcpy(_data, copy._data, _num_rows * _num_cols * sizeof(PN_stdfloat));
+ }
+ 
+diff --git a/panda/src/bullet/bulletHeightfieldShape.cxx b/panda/src/bullet/bulletHeightfieldShape.cxx
+index 3fe13c2..984efac 100644
+--- a/panda/src/bullet/bulletHeightfieldShape.cxx
++++ b/panda/src/bullet/bulletHeightfieldShape.cxx
+@@ -27,7 +27,7 @@ BulletHeightfieldShape(const PNMImage &image, PN_stdfloat max_height, BulletUpAx
+   _num_rows = image.get_x_size();
+   _num_cols = image.get_y_size();
+ 
+-  _data = new float[_num_rows * _num_cols];
++  _data = new PN_stdfloat[_num_rows * _num_cols];
+ 
+   for (int row=0; row < _num_rows; row++) {
+     for (int column=0; column < _num_cols; column++) {
+diff --git a/panda/src/bullet/bulletHeightfieldShape.h b/panda/src/bullet/bulletHeightfieldShape.h
+index 25031ab..ed6aee2 100644
+--- a/panda/src/bullet/bulletHeightfieldShape.h
++++ b/panda/src/bullet/bulletHeightfieldShape.h
+@@ -43,7 +43,7 @@ public:
+ private:
+   int _num_rows;
+   int _num_cols;
+-  float *_data;
++  PN_stdfloat *_data;
+   btHeightfieldTerrainShape *_shape;
+ 
+ ////////////////////////////////////////////////////////////////////
 diff --git a/panda/src/glhdisplay/Sources.pp b/panda/src/glhdisplay/Sources.pp
 new file mode 100644
 index 0000000..ed1847a
@@ -986,6 +1045,23 @@ index 0000000..77aca0d
 +#include "glhGraphicsStateGuardian.cxx"
 +#include "glhGraphicsPipe.cxx"
 +#include "glhGraphicsWindow.cxx"
+diff --git a/panda/src/gobj/shader.cxx b/panda/src/gobj/shader.cxx
+index 7761312..a7188ce 100644
+--- a/panda/src/gobj/shader.cxx
++++ b/panda/src/gobj/shader.cxx
+@@ -2145,9 +2145,9 @@ Shader(ShaderLanguage lang) :
+   _cg_fprofile = CG_PROFILE_UNKNOWN;
+   _cg_gprofile = CG_PROFILE_UNKNOWN;
+   if (_default_caps._ultimate_vprofile == 0 || _default_caps._ultimate_vprofile == CG_PROFILE_UNKNOWN) {
+-    _default_caps._active_vprofile = CG_PROFILE_GENERIC;
+-    _default_caps._active_fprofile = CG_PROFILE_GENERIC;
+-    _default_caps._active_gprofile = CG_PROFILE_GENERIC;
++    _default_caps._active_vprofile = CG_PROFILE_GLSLV;
++    _default_caps._active_fprofile = CG_PROFILE_GLSLF;
++    _default_caps._active_gprofile = CG_PROFILE_GLSLG;
+     _default_caps._ultimate_vprofile = cgGetProfile("glslv");
+     _default_caps._ultimate_fprofile = cgGetProfile("glslf");
+     _default_caps._ultimate_gprofile = cgGetProfile("glslg");
 diff --git a/panda/src/pandabase/pandasymbols.h b/panda/src/pandabase/pandasymbols.h
 index 235b8b9..5390c00 100644
 --- a/panda/src/pandabase/pandasymbols.h
