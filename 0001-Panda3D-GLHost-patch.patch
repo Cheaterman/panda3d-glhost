@@ -1,13 +1,11 @@
-From 125289d213e97ebe78281c29d04d648099212953 Mon Sep 17 00:00:00 2001
+From c9db795a04db81e828d5c5cf731001b6107d3e0c Mon Sep 17 00:00:00 2001
 From: The Cheaterman <the.cheaterman@gmail.com>
 Date: Thu, 13 Aug 2015 02:30:31 +0200
 Subject: [PATCH] Panda3D GLHost patch
 
 ---
- makepanda/makepanda.py                            |  19 +-
- panda/src/bullet/bulletHeightfieldShape.I         |   8 +-
+ makepanda/makepanda.py                            |  21 +-
  panda/src/bullet/bulletHeightfieldShape.cxx       |   2 +-
- panda/src/bullet/bulletHeightfieldShape.h         |   2 +-
  panda/src/glhdisplay/Sources.pp                   |  26 +++
  panda/src/glhdisplay/config_glhdisplay.cxx        |  69 +++++++
  panda/src/glhdisplay/config_glhdisplay.h          |  26 +++
@@ -23,7 +21,7 @@ Subject: [PATCH] Panda3D GLHost patch
  panda/src/glhdisplay/glhdisplay_composite.cxx     |   4 +
  panda/src/gobj/shader.cxx                         |   6 +-
  panda/src/pandabase/pandasymbols.h                |   8 +
- 19 files changed, 853 insertions(+), 10 deletions(-)
+ 17 files changed, 850 insertions(+), 5 deletions(-)
  create mode 100644 panda/src/glhdisplay/Sources.pp
  create mode 100644 panda/src/glhdisplay/config_glhdisplay.cxx
  create mode 100644 panda/src/glhdisplay/config_glhdisplay.h
@@ -39,7 +37,7 @@ Subject: [PATCH] Panda3D GLHost patch
  create mode 100644 panda/src/glhdisplay/glhdisplay_composite.cxx
 
 diff --git a/makepanda/makepanda.py b/makepanda/makepanda.py
-index d7269f7..27c9bf1 100755
+index 1c8c95724..d5505c008 100755
 --- a/makepanda/makepanda.py
 +++ b/makepanda/makepanda.py
 @@ -74,9 +74,10 @@ if "MACOSX_DEPLOYMENT_TARGET" in os.environ:
@@ -52,25 +50,26 @@ index d7269f7..27c9bf1 100755
    "EIGEN",                                             # Linear algebra acceleration
 +  "GLHOST",                                            # Running in GL hosted
    "OPENAL", "FMODEX",                                  # Audio playback
-   "VORBIS", "FFMPEG", "SWSCALE", "SWRESAMPLE",         # Audio decoding
+   "VORBIS", "OPUS", "FFMPEG", "SWSCALE", "SWRESAMPLE", # Audio decoding
    "ODE", "PHYSX", "BULLET", "PANDAPHYSICS",            # Physics
-@@ -1600,6 +1601,7 @@ def CompileLink(dll, obj, opts):
-                 if ("MODULE" not in opts): cmd += " -Wl,-soname=" + os.path.basename(dll)
+@@ -1738,6 +1739,8 @@ def CompileLink(dll, obj, opts):
+                     cmd += " -Wl,-soname=" + os.path.basename(dll)
                  cmd += ' -o ' + dll + ' -L' + GetOutputDir() + '/lib -L' + GetOutputDir() + '/tmp'
  
 +        cmd += ' -Wl,--no-as-needed'
++
          for x in obj:
              if GetOrigExt(x) != ".dat":
                  cmd += ' ' + x
-@@ -2022,6 +2024,7 @@ def CompileAnything(target, inputs, opts, progress = None):
- DTOOL_CONFIG=[
-     #_Variable_________________________Windows___________________Unix__________
-     ("HAVE_PYTHON",                    '1',                      '1'),
+@@ -2336,6 +2339,7 @@ DTOOL_CONFIG=[
+     ("HAVE_NET",                       'UNDEF',                  'UNDEF'),
+     ("WANT_NATIVE_NET",                '1',                      '1'),
+     ("SIMULATE_NETWORK_DELAY",         'UNDEF',                  'UNDEF'),
 +    ("USE_GLHOST",                     'UNDEF',                  '1'),
-     ("USE_DEBUG_PYTHON",               'UNDEF',                  'UNDEF'),
-     ("PYTHON_FRAMEWORK",               'UNDEF',                  'UNDEF'),
-     ("COMPILE_IN_DEFAULT_FONT",        '1',                      '1'),
-@@ -2923,6 +2926,7 @@ else:
+     ("HAVE_CG",                        'UNDEF',                  'UNDEF'),
+     ("HAVE_CGGL",                      'UNDEF',                  'UNDEF'),
+     ("HAVE_CGDX9",                     'UNDEF',                  'UNDEF'),
+@@ -3197,6 +3201,7 @@ else:
      CopyAllHeaders('panda/src/x11display')
      CopyAllHeaders('panda/src/glxdisplay')
  CopyAllHeaders('panda/src/egldisplay')
@@ -78,10 +77,11 @@ index d7269f7..27c9bf1 100755
  CopyAllHeaders('panda/metalibs/pandagl')
  CopyAllHeaders('panda/metalibs/pandagles')
  CopyAllHeaders('panda/metalibs/pandagles2')
-@@ -4511,6 +4515,19 @@ if (PkgSkip("EGL")==0 and PkgSkip("GLES2")==0 and PkgSkip("X11")==0 and not RUNT
-   TargetAdd('libpandagles2.dll', opts=['MODULE', 'GLES2', 'EGL', 'X11', 'XRANDR', 'XF86DGA', 'XCURSOR'])
+@@ -4864,6 +4869,20 @@ if (PkgSkip("EGL")==0 and PkgSkip("GLES2")==0 and PkgSkip("X11")==0 and not RUNT
+   TargetAdd('libpandagles2.dll', input=COMMON_PANDA_LIBS)
+   TargetAdd('libpandagles2.dll', opts=['MODULE', 'GLES2', 'EGL', 'X11'])
  
- #
++#
 +# DIRECTORY: panda/src/glhdisplay/
 +#
 +
@@ -94,64 +94,26 @@ index d7269f7..27c9bf1 100755
 +  TargetAdd('libglhdisplay.dll', input=COMMON_PANDA_LIBS)
 +  TargetAdd('libglhdisplay.dll', opts=['MODULE', 'GL', 'CGGL'])
 +
-+#
++
+ #
  # DIRECTORY: panda/src/ode/
  #
- if (PkgSkip("ODE")==0 and not RUNTIME):
-diff --git a/panda/src/bullet/bulletHeightfieldShape.I b/panda/src/bullet/bulletHeightfieldShape.I
-index 6803855..f974de9 100644
---- a/panda/src/bullet/bulletHeightfieldShape.I
-+++ b/panda/src/bullet/bulletHeightfieldShape.I
-@@ -35,8 +35,8 @@ BulletHeightfieldShape(const BulletHeightfieldShape &copy) :
-   _num_rows(copy._num_rows),
-   _num_cols(copy._num_cols) {
- 
--  _data = new float[_num_rows * _num_cols];
--  memcpy(_data, copy._data, _num_rows * _num_cols * sizeof(float));
-+  _data = new PN_stdfloat[_num_rows * _num_cols];
-+  memcpy(_data, copy._data, _num_rows * _num_cols * sizeof(PN_stdfloat));
- }
- 
- ////////////////////////////////////////////////////////////////////
-@@ -51,7 +51,7 @@ operator = (const BulletHeightfieldShape &copy) {
-   _num_rows = copy._num_rows;
-   _num_cols = copy._num_cols;
- 
--  _data = new float[_num_rows * _num_cols];
--  memcpy(_data, copy._data, _num_rows * _num_cols * sizeof(float));
-+  _data = new PN_stdfloat[_num_rows * _num_cols];
-+  memcpy(_data, copy._data, _num_rows * _num_cols * sizeof(PN_stdfloat));
- }
- 
 diff --git a/panda/src/bullet/bulletHeightfieldShape.cxx b/panda/src/bullet/bulletHeightfieldShape.cxx
-index 3fe13c2..984efac 100644
+index 1a0187640..1a6d7bf3c 100644
 --- a/panda/src/bullet/bulletHeightfieldShape.cxx
 +++ b/panda/src/bullet/bulletHeightfieldShape.cxx
-@@ -27,7 +27,7 @@ BulletHeightfieldShape(const PNMImage &image, PN_stdfloat max_height, BulletUpAx
-   _num_rows = image.get_x_size();
-   _num_cols = image.get_y_size();
+@@ -207,7 +207,7 @@ fillin(DatagramIterator &scan, BamReader *manager) {
  
--  _data = new float[_num_rows * _num_cols];
-+  _data = new PN_stdfloat[_num_rows * _num_cols];
+   size_t size = (size_t)_num_rows * (size_t)_num_cols;
+   delete [] _data;
+-  _data = new float[size];
++  _data = new btScalar[size];
  
-   for (int row=0; row < _num_rows; row++) {
-     for (int column=0; column < _num_cols; column++) {
-diff --git a/panda/src/bullet/bulletHeightfieldShape.h b/panda/src/bullet/bulletHeightfieldShape.h
-index 25031ab..ed6aee2 100644
---- a/panda/src/bullet/bulletHeightfieldShape.h
-+++ b/panda/src/bullet/bulletHeightfieldShape.h
-@@ -43,7 +43,7 @@ public:
- private:
-   int _num_rows;
-   int _num_cols;
--  float *_data;
-+  PN_stdfloat *_data;
-   btHeightfieldTerrainShape *_shape;
- 
- ////////////////////////////////////////////////////////////////////
+   for (size_t i = 0; i < size; ++i) {
+     _data[i]  = scan.get_stdfloat();
 diff --git a/panda/src/glhdisplay/Sources.pp b/panda/src/glhdisplay/Sources.pp
 new file mode 100644
-index 0000000..ed1847a
+index 000000000..ed1847a90
 --- /dev/null
 +++ b/panda/src/glhdisplay/Sources.pp
 @@ -0,0 +1,26 @@
@@ -183,7 +145,7 @@ index 0000000..ed1847a
 ++#end lib_target
 diff --git a/panda/src/glhdisplay/config_glhdisplay.cxx b/panda/src/glhdisplay/config_glhdisplay.cxx
 new file mode 100644
-index 0000000..6ef86ff
+index 000000000..6ef86ffb3
 --- /dev/null
 +++ b/panda/src/glhdisplay/config_glhdisplay.cxx
 @@ -0,0 +1,69 @@
@@ -258,7 +220,7 @@ index 0000000..6ef86ff
 +}
 diff --git a/panda/src/glhdisplay/config_glhdisplay.h b/panda/src/glhdisplay/config_glhdisplay.h
 new file mode 100644
-index 0000000..c719e57
+index 000000000..c719e57d4
 --- /dev/null
 +++ b/panda/src/glhdisplay/config_glhdisplay.h
 @@ -0,0 +1,26 @@
@@ -290,7 +252,7 @@ index 0000000..c719e57
 +#endif
 diff --git a/panda/src/glhdisplay/glhGraphicsPipe.I b/panda/src/glhdisplay/glhGraphicsPipe.I
 new file mode 100644
-index 0000000..5afdae9
+index 000000000..5afdae910
 --- /dev/null
 +++ b/panda/src/glhdisplay/glhGraphicsPipe.I
 @@ -0,0 +1,13 @@
@@ -309,7 +271,7 @@ index 0000000..5afdae9
 +////////////////////////////////////////////////////////////////////
 diff --git a/panda/src/glhdisplay/glhGraphicsPipe.cxx b/panda/src/glhdisplay/glhGraphicsPipe.cxx
 new file mode 100644
-index 0000000..25f2f31
+index 000000000..25f2f31c3
 --- /dev/null
 +++ b/panda/src/glhdisplay/glhGraphicsPipe.cxx
 @@ -0,0 +1,108 @@
@@ -423,7 +385,7 @@ index 0000000..25f2f31
 +}
 diff --git a/panda/src/glhdisplay/glhGraphicsPipe.h b/panda/src/glhdisplay/glhGraphicsPipe.h
 new file mode 100644
-index 0000000..22e2f34
+index 000000000..22e2f34e5
 --- /dev/null
 +++ b/panda/src/glhdisplay/glhGraphicsPipe.h
 @@ -0,0 +1,71 @@
@@ -500,7 +462,7 @@ index 0000000..22e2f34
 +
 diff --git a/panda/src/glhdisplay/glhGraphicsStateGuardian.I b/panda/src/glhdisplay/glhGraphicsStateGuardian.I
 new file mode 100644
-index 0000000..3d36aee
+index 000000000..3d36aee66
 --- /dev/null
 +++ b/panda/src/glhdisplay/glhGraphicsStateGuardian.I
 @@ -0,0 +1,13 @@
@@ -519,7 +481,7 @@ index 0000000..3d36aee
 +////////////////////////////////////////////////////////////////////
 diff --git a/panda/src/glhdisplay/glhGraphicsStateGuardian.cxx b/panda/src/glhdisplay/glhGraphicsStateGuardian.cxx
 new file mode 100644
-index 0000000..c77e057
+index 000000000..c77e05731
 --- /dev/null
 +++ b/panda/src/glhdisplay/glhGraphicsStateGuardian.cxx
 @@ -0,0 +1,96 @@
@@ -621,7 +583,7 @@ index 0000000..c77e057
 +}
 diff --git a/panda/src/glhdisplay/glhGraphicsStateGuardian.h b/panda/src/glhdisplay/glhGraphicsStateGuardian.h
 new file mode 100644
-index 0000000..a00e881
+index 000000000..a00e88116
 --- /dev/null
 +++ b/panda/src/glhdisplay/glhGraphicsStateGuardian.h
 @@ -0,0 +1,68 @@
@@ -695,7 +657,7 @@ index 0000000..a00e881
 +#endif
 diff --git a/panda/src/glhdisplay/glhGraphicsWindow.I b/panda/src/glhdisplay/glhGraphicsWindow.I
 new file mode 100644
-index 0000000..055790b
+index 000000000..055790b37
 --- /dev/null
 +++ b/panda/src/glhdisplay/glhGraphicsWindow.I
 @@ -0,0 +1,13 @@
@@ -714,7 +676,7 @@ index 0000000..055790b
 +////////////////////////////////////////////////////////////////////
 diff --git a/panda/src/glhdisplay/glhGraphicsWindow.cxx b/panda/src/glhdisplay/glhGraphicsWindow.cxx
 new file mode 100644
-index 0000000..b134897
+index 000000000..b1348972c
 --- /dev/null
 +++ b/panda/src/glhdisplay/glhGraphicsWindow.cxx
 @@ -0,0 +1,241 @@
@@ -961,7 +923,7 @@ index 0000000..b134897
 +}
 diff --git a/panda/src/glhdisplay/glhGraphicsWindow.h b/panda/src/glhdisplay/glhGraphicsWindow.h
 new file mode 100644
-index 0000000..56e6d68
+index 000000000..56e6d6815
 --- /dev/null
 +++ b/panda/src/glhdisplay/glhGraphicsWindow.h
 @@ -0,0 +1,70 @@
@@ -1037,7 +999,7 @@ index 0000000..56e6d68
 +#endif
 diff --git a/panda/src/glhdisplay/glhdisplay_composite.cxx b/panda/src/glhdisplay/glhdisplay_composite.cxx
 new file mode 100644
-index 0000000..77aca0d
+index 000000000..77aca0d9f
 --- /dev/null
 +++ b/panda/src/glhdisplay/glhdisplay_composite.cxx
 @@ -0,0 +1,4 @@
@@ -1046,10 +1008,10 @@ index 0000000..77aca0d
 +#include "glhGraphicsPipe.cxx"
 +#include "glhGraphicsWindow.cxx"
 diff --git a/panda/src/gobj/shader.cxx b/panda/src/gobj/shader.cxx
-index 7761312..a7188ce 100644
+index add7acef2..e75bec940 100644
 --- a/panda/src/gobj/shader.cxx
 +++ b/panda/src/gobj/shader.cxx
-@@ -2145,9 +2145,9 @@ Shader(ShaderLanguage lang) :
+@@ -2341,9 +2341,9 @@ Shader(ShaderLanguage lang) :
    _cg_fprofile = CG_PROFILE_UNKNOWN;
    _cg_gprofile = CG_PROFILE_UNKNOWN;
    if (_default_caps._ultimate_vprofile == 0 || _default_caps._ultimate_vprofile == CG_PROFILE_UNKNOWN) {
@@ -1063,11 +1025,11 @@ index 7761312..a7188ce 100644
      _default_caps._ultimate_fprofile = cgGetProfile("glslf");
      _default_caps._ultimate_gprofile = cgGetProfile("glslg");
 diff --git a/panda/src/pandabase/pandasymbols.h b/panda/src/pandabase/pandasymbols.h
-index 235b8b9..5390c00 100644
+index dafb15e7f..c2efe5cc1 100644
 --- a/panda/src/pandabase/pandasymbols.h
 +++ b/panda/src/pandabase/pandasymbols.h
-@@ -254,6 +254,14 @@
-   #define EXPTP_SHADER IMPORT_TEMPL
+@@ -213,6 +213,14 @@
+   #define EXPTP_ROCKET IMPORT_TEMPL
  #endif
  
 +#ifdef BUILDING_GLHDISPLAY
@@ -1082,5 +1044,5 @@ index 235b8b9..5390c00 100644
    #define EXPCL_TINYDISPLAY EXPORT_CLASS
    #define EXPTP_TINYDISPLAY EXPORT_TEMPL
 -- 
-2.4.6
+2.16.1
 
