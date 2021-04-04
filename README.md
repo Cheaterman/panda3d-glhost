@@ -1,3 +1,9 @@
+Deprecated - see https://github.com/Cheaterman/panda3d-kivy for a modern way to integrate Kivy into Panda3D.
+
+
+
+
+
 # panda3d-glhost
 Panda3D GLHost patch allows Panda3D to run inside another GL toolkit.
 
